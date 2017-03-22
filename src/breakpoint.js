@@ -12,6 +12,7 @@ class Breakpoint {
    * @param {string} [options.file] The full path to a file in which breakpoint appears.
    * @param {number} [options.line] The line number at which the breakpoint appears.
    * @param {string} [options.func] The function in which the breakpoint appears.
+   * @param {enabled} [options.enabled] Bool indiciating whether this breakpoint is enabled.
    * @param {Thread} [options.thread] The thread for thread-specific breakpoints.
    */
   constructor (id, options = {}) {
@@ -49,6 +50,14 @@ class Breakpoint {
      * @type {?Thread}
      */
     this.thread = options.thread || null
+
+    /**
+     * The thread for thread-specific breakpoints.
+     *
+     * @type {?Thread}
+     */
+    this.enabled = options.enabled || null
+
   }
 }
 

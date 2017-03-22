@@ -571,6 +571,35 @@ class GDB extends EventEmitter {
   selectThreadGroup (group) {
     return this._sync(() => this._selectThreadGroup(group))
   }
+  /**
+   * Lists all breakpoints.
+   *
+   * @returns {Promise<Breakpoints, GDBError>} A promise that resolves with list of breakpoints.
+   **/
+
+  getBreaks () {
+    return this._sync(async () => {
+      //let { bkpt } = await this._execMI(`-break-insert main.c:bar`)
+      let bkpts = await this._execMI(`-break-list`)
+      bkpts = bkpts.BreakpointTable.body
+      let result = []
+      let thread = ''
+      for (let bkpt of bkpts)  {
+          bkpt = bkpt.value
+          let enabled = bkpt.enabled == 'y' ? true: false
+          let bpObj = new Breakpoint(toInt(bkpt.number), {
+                        file: bkpt.fullname,
+                        line: toInt(bkpt.line),
+                        func: bkpt.func,
+                        thread: thread,
+                        enabled: enabled 
+                      })
+        result.push(bpObj)
+      }
+      return result
+
+    })
+  }
 
   /**
    * Insert a breakpoint at the specified position.
@@ -861,6 +890,20 @@ class GDB extends EventEmitter {
     return this._sync(() => this._execMI(cmd, scope))
   }
 
+  /**
+   * Execute a MI with no expectation of return value.
+   *
+   * @param {string} cmd The MI command.
+   * @param {Thread|ThreadGroup} [scope] The thread or thread-group where
+   *   the command should be executed. If this parameter is omitted,
+   *   it executes in the current thread.
+   *
+   * @returns Nothing.
+   */
+  execMInor (cmd, scope) {
+    return this._execMInor(cmd, scope)
+  }
+
   // Private methods
   // Note that it's necessary to not call public methods and {@link GDB#_sync}
   // method in these methods since it may cause blocking.
@@ -976,6 +1019,25 @@ class GDB extends EventEmitter {
       return this._exec(cmd, 'mi')
     }
   }
+  
+  /**
+   * Internal method for calling MI nor commands.
+   *
+   * @ignore
+   */
+  _execMInor (cmd, scope) {
+    let [, name, options] = /([^ ]+)( .*|)/.exec(cmd)
+
+    if (scope instanceof Thread) {
+      return this._exec(`${name} --thread ${scope.id} ${options}`, 'minor')
+    } else if (scope instanceof ThreadGroup) {
+      // `--thread-group` option changes thread.
+      return this._preserveThread(() =>
+        this._exec(`${name} --thread-group i${scope.id} ${options}`, 'minor'))
+    } else {
+      return this._exec(cmd, 'minor')
+    }
+  }
 
   /**
    * Internal method that executes a MI command and add it to the queue where it
@@ -992,6 +1054,8 @@ class GDB extends EventEmitter {
   _exec (cmd, interpreter) {
     if (interpreter === 'mi') {
       debugMIInput(cmd)
+    } else if (interpreter === 'minor') {
+      debugMIInput(cmd)
     } else {
       debugCLIInput(`gdbjs-${cmd}`)
       cmd = `-interpreter-exec console "gdbjs-${cmd}"`
@@ -999,9 +1063,13 @@ class GDB extends EventEmitter {
 
     this._process.stdin.write(cmd + '\n', { binary: true })
 
-    return new Promise((resolve, reject) => {
-      this._queue.write({ cmd, interpreter, resolve, reject })
-    })
+    if (interpreter == 'minor') {
+        return true;
+    } else {
+        return new Promise((resolve, reject) => {
+          this._queue.write({ cmd, interpreter, resolve, reject })
+        })
+    }
   }
 
   /**

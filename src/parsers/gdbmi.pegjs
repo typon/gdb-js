@@ -111,7 +111,7 @@ Escaped "escaped"
   / "t" { return '\t' }
 
 String "string"
-  = [a-z-_]+ { return text() }
+  = [A-z-_]+ { return text() }
 
 Token "token"
   = [0-9]+ { return parseInt(text(), 10) }
